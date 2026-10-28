@@ -1,0 +1,6 @@
+{
+  "name": "TRỢ LÝ TẠO ĐỀ NGỮ VĂN THPT",
+  "description": "Ứng dụng hỗ trợ giáo viên Ngữ văn THPT xây dựng ma trận, bảng đặc tả, đề kiểm tra và hướng dẫn chấm chuẩn chương trình GDPT 2018.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
