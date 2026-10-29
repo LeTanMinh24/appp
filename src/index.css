@@ -1,6 +1,29 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: 'Lora', 'Tinos', 'Times New Roman', Georgia, Cambria, serif;
+}
+
 @layer base {
+  html {
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+  }
+
+  /* Tránh cắt dấu tiếng Việt trên các tiêu đề và thẻ có dấu */
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.35;
+    text-wrap: balance;
+  }
   @media print {
     body {
       background-color: #ffffff !important;

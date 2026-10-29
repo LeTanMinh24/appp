@@ -21,6 +21,24 @@ const SIZE_SUB = 22; // 11pt
 const SIZE_H1 = 28; // 14pt
 const SIZE_H2 = 26; // 13pt
 
+const nfc = (text?: string): string => (text || '').normalize('NFC');
+
+function createPromptTextRuns(prompt: string): TextRun[] {
+  const normalized = nfc(prompt);
+  // Split by quoted phrases: "...", “...”, '...', ‘...’
+  const parts = normalized.split(/([“"‘'][^”"’']+[”"’'])/g);
+  return parts.map((part) => {
+    const isQuoted = /^[“"‘'].+[”"’']$/.test(part);
+    return new TextRun({
+      text: part,
+      font: FONT_FAMILY,
+      size: SIZE_BODY,
+      italics: isQuoted,
+      color: '000000',
+    });
+  });
+}
+
 const BORDER_NONE = {
   style: BorderStyle.NONE,
   size: 0,
@@ -37,7 +55,7 @@ const CELL_NO_BORDER = {
 const BORDER_THIN = {
   style: BorderStyle.SINGLE,
   size: 1,
-  color: '999999',
+  color: '000000',
 };
 
 const CELL_TABLE_BORDER = {
@@ -88,6 +106,7 @@ function createHeaderTable(exam: GeneratedExam): Table {
                     text: '-----------------------',
                     font: FONT_FAMILY,
                     size: SIZE_SUB,
+                    color: '000000',
                   }),
                 ],
               }),
@@ -95,10 +114,11 @@ function createHeaderTable(exam: GeneratedExam): Table {
                 alignment: AlignmentType.CENTER,
                 children: [
                   new TextRun({
-                    text: '(Đề kiểm tra có 02 trang)',
+                    text: examHeader.pageCountNotice || '(Đề kiểm tra có 02 trang)',
                     font: FONT_FAMILY,
                     size: SIZE_SUB,
                     italics: true,
+                    color: '000000',
                   }),
                 ],
               }),
@@ -116,6 +136,7 @@ function createHeaderTable(exam: GeneratedExam): Table {
                     font: FONT_FAMILY,
                     size: SIZE_H1,
                     bold: true,
+                    color: '000000',
                   }),
                 ],
               }),
@@ -127,6 +148,7 @@ function createHeaderTable(exam: GeneratedExam): Table {
                     font: FONT_FAMILY,
                     size: SIZE_BODY,
                     bold: true,
+                    color: '000000',
                   }),
                 ],
               }),
@@ -134,10 +156,11 @@ function createHeaderTable(exam: GeneratedExam): Table {
                 alignment: AlignmentType.CENTER,
                 children: [
                   new TextRun({
-                    text: `Môn: NGỮ VĂN - LỚP ${examHeader.grade || '11'}`,
+                    text: `Môn: ${(examHeader.subject || 'NGỮ VĂN').toUpperCase()} - LỚP ${examHeader.grade || '11'}`,
                     font: FONT_FAMILY,
                     size: SIZE_BODY,
                     bold: true,
+                    color: '000000',
                   }),
                 ],
               }),
@@ -145,10 +168,11 @@ function createHeaderTable(exam: GeneratedExam): Table {
                 alignment: AlignmentType.CENTER,
                 children: [
                   new TextRun({
-                    text: `Thời gian làm bài: ${examHeader.duration || 90} phút (không kể thời gian phát đề)`,
+                    text: examHeader.timeNotice || `Thời gian làm bài: ${examHeader.duration || 90} phút (không kể thời gian phát đề)`,
                     font: FONT_FAMILY,
                     size: SIZE_BODY,
                     italics: true,
+                    color: '000000',
                   }),
                 ],
               }),
@@ -224,9 +248,11 @@ function createExamContentElements(exam: GeneratedExam): (Paragraph | Table)[] {
           indent: { left: 400, right: 400 },
           children: [
             new TextRun({
-              text: line.trim(),
+              text: nfc(line.trim()),
               font: FONT_FAMILY,
               size: SIZE_BODY,
+              italics: true,
+              color: '000000',
             }),
           ],
         })
@@ -240,10 +266,11 @@ function createExamContentElements(exam: GeneratedExam): (Paragraph | Table)[] {
       spacing: { before: 100, after: 200 },
       children: [
         new TextRun({
-          text: `(Nguồn: ${sourcePassage.author}, "${sourcePassage.title}", ${sourcePassage.source})`,
+          text: `(Nguồn: ${nfc(sourcePassage.author)}, "${nfc(sourcePassage.title)}", ${nfc(sourcePassage.source)})`,
           font: FONT_FAMILY,
           size: SIZE_BODY,
           italics: true,
+          color: '000000',
         }),
       ],
     })
@@ -259,6 +286,7 @@ function createExamContentElements(exam: GeneratedExam): (Paragraph | Table)[] {
           size: SIZE_BODY,
           bold: true,
           italics: true,
+          color: '000000',
         }),
       ],
     })
@@ -275,12 +303,9 @@ function createExamContentElements(exam: GeneratedExam): (Paragraph | Table)[] {
             font: FONT_FAMILY,
             size: SIZE_BODY,
             bold: true,
+            color: '000000',
           }),
-          new TextRun({
-            text: q.prompt,
-            font: FONT_FAMILY,
-            size: SIZE_BODY,
-          }),
+          ...createPromptTextRuns(q.prompt),
         ],
       })
     );
@@ -298,6 +323,7 @@ function createExamContentElements(exam: GeneratedExam): (Paragraph | Table)[] {
             font: FONT_FAMILY,
             size: SIZE_H2,
             bold: true,
+            color: '000000',
           }),
         ],
       })
@@ -316,12 +342,9 @@ function createExamContentElements(exam: GeneratedExam): (Paragraph | Table)[] {
               font: FONT_FAMILY,
               size: SIZE_BODY,
               bold: true,
+              color: '000000',
             }),
-            new TextRun({
-              text: pq.prompt,
-              font: FONT_FAMILY,
-              size: SIZE_BODY,
-            }),
+            ...createPromptTextRuns(pq.prompt),
           ],
         })
       );
@@ -339,12 +362,9 @@ function createExamContentElements(exam: GeneratedExam): (Paragraph | Table)[] {
               font: FONT_FAMILY,
               size: SIZE_BODY,
               bold: true,
+              color: '000000',
             }),
-            new TextRun({
-              text: eq.prompt,
-              font: FONT_FAMILY,
-              size: SIZE_BODY,
-            }),
+            ...createPromptTextRuns(eq.prompt),
           ],
         })
       );
@@ -515,12 +535,9 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                     italics: true,
                     font: FONT_FAMILY,
                     size: SIZE_SUB,
+                    color: '000000',
                   }),
-                  new TextRun({
-                    text: item.detailedAnswer,
-                    font: FONT_FAMILY,
-                    size: SIZE_BODY,
-                  }),
+                  ...createPromptTextRuns(item.detailedAnswer),
                 ],
               }),
             ],
@@ -537,6 +554,7 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                     bold: true,
                     font: FONT_FAMILY,
                     size: SIZE_BODY,
+                    color: '000000',
                   }),
                 ],
               }),
@@ -567,6 +585,7 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       bold: true,
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
                   ],
                 }),
@@ -583,6 +602,7 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       text: isFirstPara ? 'Câu 1\n(Đoạn văn)' : '',
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
                   ],
                 }),
@@ -599,12 +619,9 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       bold: true,
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
-                    new TextRun({
-                      text: crit.requirement,
-                      font: FONT_FAMILY,
-                      size: SIZE_BODY,
-                    }),
+                    ...createPromptTextRuns(crit.requirement),
                   ],
                 }),
               ],
@@ -620,6 +637,7 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       text: `${crit.score}`,
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
                   ],
                 }),
@@ -651,6 +669,7 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       bold: true,
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
                   ],
                 }),
@@ -667,6 +686,7 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       text: isFirstEssay ? (answerGuide.paragraphRubric ? 'Câu 2\n(Bài văn)' : 'Câu 1\n(Bài văn)') : '',
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
                   ],
                 }),
@@ -683,12 +703,9 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       bold: true,
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
-                    new TextRun({
-                      text: crit.requirement,
-                      font: FONT_FAMILY,
-                      size: SIZE_BODY,
-                    }),
+                    ...createPromptTextRuns(crit.requirement),
                   ],
                 }),
               ],
@@ -704,6 +721,7 @@ function createAnswerGuideElements(exam: GeneratedExam): (Paragraph | Table)[] {
                       text: `${crit.score}`,
                       font: FONT_FAMILY,
                       size: SIZE_BODY,
+                      color: '000000',
                     }),
                   ],
                 }),

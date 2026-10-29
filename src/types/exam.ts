@@ -10,6 +10,7 @@ export type ExamType =
   | 'Kiểm tra cuối kỳ I'
   | 'Kiểm tra giữa kỳ II'
   | 'Kiểm tra cuối kỳ II'
+  | 'Kiểm tra thường xuyên (15 phút)'
   | 'Kiểm tra thường xuyên'
   | 'Kiểm tra giữa kỳ'
   | 'Kiểm tra cuối kỳ'
@@ -132,6 +133,8 @@ export interface ExamHeader {
   duration: number;
   totalScore: number;
   instructions?: string;
+  pageCountNotice?: string;
+  timeNotice?: string;
 }
 
 export interface ExamValidationInfo {

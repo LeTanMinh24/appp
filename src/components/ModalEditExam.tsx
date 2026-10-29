@@ -89,6 +89,36 @@ export const ModalEditExam: React.FC<ModalEditExamProps> = ({
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
+                <label className="block text-stone-600 font-medium mb-1">Sở GD&ĐT:</label>
+                <input
+                  type="text"
+                  value={editedExam.examHeader.department}
+                  onChange={(e) =>
+                    setEditedExam({
+                      ...editedExam,
+                      examHeader: { ...editedExam.examHeader, department: e.target.value },
+                    })
+                  }
+                  className="w-full px-3 py-1.5 rounded-lg border border-stone-300 bg-white uppercase font-bold"
+                  placeholder="SỞ GIÁO DỤC VÀ ĐÀO TẠO..."
+                />
+              </div>
+              <div>
+                <label className="block text-stone-600 font-medium mb-1">Tên Trường / Đơn vị:</label>
+                <input
+                  type="text"
+                  value={editedExam.examHeader.school}
+                  onChange={(e) =>
+                    setEditedExam({
+                      ...editedExam,
+                      examHeader: { ...editedExam.examHeader, school: e.target.value },
+                    })
+                  }
+                  className="w-full px-3 py-1.5 rounded-lg border border-stone-300 bg-white uppercase font-bold"
+                  placeholder="TRƯỜNG THPT CHUYÊN / THPT..."
+                />
+              </div>
+              <div>
                 <label className="block text-stone-600 font-medium mb-1">Tiêu đề kỳ thi:</label>
                 <input
                   type="text"
@@ -99,7 +129,8 @@ export const ModalEditExam: React.FC<ModalEditExamProps> = ({
                       examHeader: { ...editedExam.examHeader, examTitle: e.target.value },
                     })
                   }
-                  className="w-full px-3 py-1.5 rounded-lg border border-stone-300 bg-white"
+                  className="w-full px-3 py-1.5 rounded-lg border border-stone-300 bg-white uppercase font-bold"
+                  placeholder="KIỂM TRA THƯỜNG XUYÊN (15 PHÚT)"
                 />
               </div>
               <div>
@@ -110,11 +141,73 @@ export const ModalEditExam: React.FC<ModalEditExamProps> = ({
                   onChange={(e) =>
                     setEditedExam({
                       ...editedExam,
-                      examHeader: { ...editedExam.examHeader, duration: Number(e.target.value) },
+                      examHeader: { 
+                        ...editedExam.examHeader, 
+                        duration: Number(e.target.value),
+                        timeNotice: `Thời gian làm bài: ${e.target.value} phút (không kể thời gian giao đề)` 
+                      },
                     })
                   }
                   className="w-full px-3 py-1.5 rounded-lg border border-stone-300 bg-white"
                 />
+              </div>
+              <div>
+                <label className="block text-stone-600 font-medium mb-1">Năm học & Học kỳ:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={editedExam.examHeader.academicYear}
+                    onChange={(e) =>
+                      setEditedExam({
+                        ...editedExam,
+                        examHeader: { ...editedExam.examHeader, academicYear: e.target.value },
+                      })
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-stone-300 bg-white"
+                    placeholder="2024 - 2025"
+                  />
+                  <input
+                    type="text"
+                    value={editedExam.examHeader.semester}
+                    onChange={(e) =>
+                      setEditedExam({
+                        ...editedExam,
+                        examHeader: { ...editedExam.examHeader, semester: e.target.value },
+                      })
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-stone-300 bg-white"
+                    placeholder="HỌC KỲ I"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-stone-600 font-medium mb-1">Môn & Khối lớp:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={editedExam.examHeader.subject}
+                    onChange={(e) =>
+                      setEditedExam({
+                        ...editedExam,
+                        examHeader: { ...editedExam.examHeader, subject: e.target.value },
+                      })
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-stone-300 bg-white"
+                    placeholder="NGỮ VĂN"
+                  />
+                  <input
+                    type="text"
+                    value={editedExam.examHeader.grade}
+                    onChange={(e) =>
+                      setEditedExam({
+                        ...editedExam,
+                        examHeader: { ...editedExam.examHeader, grade: e.target.value },
+                      })
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-stone-300 bg-white"
+                    placeholder="11"
+                  />
+                </div>
               </div>
             </div>
           </div>

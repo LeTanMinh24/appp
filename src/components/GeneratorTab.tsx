@@ -58,6 +58,7 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
   const [textbook, setTextbook] = useState<TextbookSeries>('Kết nối tri thức với cuộc sống');
   const [topic, setTopic] = useState<string>('Truyện ngắn, tiểu thuyết');
   const [examType, setExamType] = useState<ExamType>('Kiểm tra giữa kỳ I');
+  const [customExamTitle, setCustomExamTitle] = useState<string>('KIỂM TRA GIỮA KỲ I');
   const [durationMinutes, setDurationMinutes] = useState<number>(90);
   const [totalScore, setTotalScore] = useState<number>(10);
   const [sampleModel, setSampleModel] = useState<SampleModelType>(initialModel || 'B');
@@ -95,6 +96,8 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentExam, setCurrentExam] = useState<GeneratedExam | null>(loadedExam);
   const [isSuggestingPassages, setIsSuggestingPassages] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
 
   // Sync when initialModel changes
   useEffect(() => {
@@ -131,7 +134,9 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
       setWritingParagraphScore(0);
       setWritingEssayScore(0);
       setReadingQuestionScores([2.0, 2.0, 2.0, 2.0, 2.0]);
-      setDurationMinutes(45);
+      if (durationMinutes > 45) {
+        setDurationMinutes(15);
+      }
     } else if (model === 'B') {
       // Đọc hiểu 6.0đ + Viết bài văn 4.0đ
       setReadingQuestionCount(5);
@@ -170,23 +175,81 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
   const calculatedTotalScore = Number((calculatedReadingSum + writingParagraphScore + writingEssayScore).toFixed(2));
   const isScoreBalanced = Math.abs(calculatedTotalScore - totalScore) < 0.01;
 
-  // Handle file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file upload (.pdf, .docx, .txt, .md)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text) {
-        setSourceText((prev) => ({
-          ...prev,
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          content: text,
-        }));
+    try {
+      setIsUploadingFile(true);
+      setErrorMessage(null);
+      setUploadSuccessMessage(null);
+
+      const fileName = file.name;
+      const lowerName = fileName.toLowerCase();
+
+      // Trường hợp tệp văn bản thuần (.txt, .text, .md)
+      if (lowerName.endsWith('.txt') || lowerName.endsWith('.text') || lowerName.endsWith('.md')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const rawText = (event.target?.result as string) || '';
+          const normalized = rawText.normalize('NFC').trim();
+          setSourceText((prev) => ({
+            ...prev,
+            title: prev.title || fileName.replace(/\.[^/.]+$/, ''),
+            content: normalized,
+          }));
+          const words = normalized.split(/\s+/).filter(Boolean).length;
+          setUploadSuccessMessage(`Đã nạp thành công tệp văn bản "${fileName}" (${words} từ).`);
+          setIsUploadingFile(false);
+        };
+        reader.onerror = () => {
+          setErrorMessage('Không thể đọc tệp văn bản. Vui lòng thử lại.');
+          setIsUploadingFile(false);
+        };
+        reader.readAsText(file, 'utf-8');
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      // Trường hợp tệp .pdf hoặc .docx: chuyển sang base64 và gửi lên backend phân tích
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      const res = await fetch('/api/parse-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileBase64: base64,
+          fileName,
+          fileType: file.type,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Không thể trích xuất văn bản từ tệp này.');
+      }
+
+      setSourceText((prev) => ({
+        ...prev,
+        title: prev.title || data.title || fileName.replace(/\.[^/.]+$/, ''),
+        content: data.text,
+      }));
+
+      setUploadSuccessMessage(data.message || `Đã trích xuất thành công ${data.wordCount} chữ từ tệp "${fileName}".`);
+    } catch (err: any) {
+      console.error('Lỗi khi đọc tệp:', err);
+      setErrorMessage('Lỗi khi tải tệp: ' + (err?.message || 'Không thể đọc tệp PDF hoặc Word. Vui lòng kiểm tra lại.'));
+    } finally {
+      setIsUploadingFile(false);
+      e.target.value = '';
+    }
   };
 
   // Fast load sample passage (Grade 11 Nam Cao "Một bữa no")
@@ -290,6 +353,7 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
           textbook,
           topic,
           examType,
+          customExamTitle: customExamTitle.trim() || examType.toUpperCase(),
           durationMinutes,
           totalScore,
           sampleModel,
@@ -326,7 +390,7 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
       const generatedData: GeneratedExam = {
         id: 'exam_' + Date.now(),
         createdAt: new Date().toISOString(),
-        title: `${examType} Ngữ văn ${grade} - ${topic}`,
+        title: `${customExamTitle.trim() || examType} Ngữ văn ${grade} - ${topic}`,
         config: {
           subject: 'Ngữ văn',
           grade,
@@ -547,17 +611,42 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
                     </label>
                     <select
                       value={examType}
-                      onChange={(e) => setExamType(e.target.value as ExamType)}
+                      onChange={(e) => {
+                        const val = e.target.value as ExamType;
+                        setExamType(val);
+                        setCustomExamTitle(val.toUpperCase());
+                        if (val === 'Kiểm tra thường xuyên (15 phút)') {
+                          setDurationMinutes(15);
+                        }
+                      }}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 text-sm font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                     >
                       <option value="Kiểm tra giữa kỳ I">Kiểm tra giữa kỳ I (Mặc định)</option>
                       <option value="Kiểm tra cuối kỳ I">Kiểm tra cuối kỳ I</option>
                       <option value="Kiểm tra giữa kỳ II">Kiểm tra giữa kỳ II</option>
                       <option value="Kiểm tra cuối kỳ II">Kiểm tra cuối kỳ II</option>
-                      <option value="Kiểm tra thường xuyên">Kiểm tra thường xuyên</option>
+                      <option value="Kiểm tra thường xuyên (15 phút)">Kiểm tra thường xuyên (15 phút)</option>
+                      <option value="Kiểm tra thường xuyên">Kiểm tra thường xuyên (45 phút)</option>
                       <option value="Đề luyện tập tốt nghiệp THPT">Đề luyện tập tốt nghiệp THPT</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Tiêu đề bài kiểm tra (Cho phép người dùng chỉnh sửa cho phù hợp) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider">
+                      Tiêu đề bài kiểm tra (Tùy chỉnh in trên đề thi)
+                    </label>
+                    <span className="text-[11px] text-stone-500 font-medium">Thầy/Cô có thể sửa tự do</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={customExamTitle}
+                    onChange={(e) => setCustomExamTitle(e.target.value)}
+                    placeholder="VD: KIỂM TRA GIỮA KỲ I, ĐỀ KHẢO SÁT CHẤT LƯỢNG..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 text-sm font-semibold text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition-all uppercase"
+                  />
                 </div>
 
                 {/* Tên bài học / Chủ đề */}
@@ -615,10 +704,11 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
                       onChange={(e) => setDurationMinutes(Number(e.target.value))}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 text-sm font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                     >
-                      <option value={45}>45 phút</option>
+                      <option value={15}>15 phút (Kiểm tra thường xuyên)</option>
+                      <option value={45}>45 phút (Kiểm tra 1 tiết)</option>
                       <option value={60}>60 phút</option>
                       <option value={90}>90 phút (Mặc định)</option>
-                      <option value={120}>120 phút</option>
+                      <option value={120}>120 phút (Thi tốt nghiệp THPT)</option>
                     </select>
                   </div>
 
@@ -652,7 +742,7 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-serif font-bold text-rose-950 text-sm">Mẫu A</span>
-                          <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-stone-200 text-stone-700">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-stone-200 text-stone-700">
                             15-45p
                           </span>
                         </div>
@@ -948,17 +1038,39 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
                     <span>Chọn từ Ngân hàng</span>
                   </button>
 
-                  <label className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-colors flex items-center space-x-1.5 cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Tải tệp .txt</span>
+                  <label className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs ${
+                    isUploadingFile 
+                      ? 'bg-rose-50 text-rose-800 border-rose-300 cursor-wait' 
+                      : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border-stone-200'
+                  }`}>
+                    <Upload className={`w-3.5 h-3.5 ${isUploadingFile ? 'animate-bounce text-rose-700' : 'text-stone-600'}`} />
+                    <span>{isUploadingFile ? 'Đang trích xuất tệp...' : 'Tải tệp (.pdf, .docx, .txt)'}</span>
                     <input
                       type="file"
-                      accept=".txt,.text,.md"
+                      accept=".pdf,.docx,.doc,.txt,.text,.md"
+                      disabled={isUploadingFile}
                       onChange={handleFileUpload}
                       className="hidden"
                     />
                   </label>
                 </div>
+
+                {/* Thông báo tải tệp thành công */}
+                {uploadSuccessMessage && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-medium">{uploadSuccessMessage}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUploadSuccessMessage(null)}
+                      className="text-emerald-700 hover:text-emerald-900 text-xs font-bold ml-2 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
 
                 {/* Thể loại & Tên tác phẩm */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

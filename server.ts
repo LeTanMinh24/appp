@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import { GoogleGenAI, Type } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,9 +11,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.NODE_ENV === 'production' ? (Number(process.env.PORT) || 3000) : 3000;
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '15mb' }));
 
 // Server-side Google GenAI client
 const ai = new GoogleGenAI({
@@ -76,6 +77,7 @@ app.post('/api/generate-exam', async (req: Request, res: Response) => {
       textbook = 'Kết nối tri thức với cuộc sống',
       topic = 'Truyện ngắn, tiểu thuyết',
       examType = 'Kiểm tra giữa kỳ I',
+      customExamTitle = '',
       durationMinutes = 90,
       totalScore = 10,
       sampleModel = 'B',
@@ -417,7 +419,7 @@ Hãy tạo đề kiểm tra, hướng dẫn chấm và ma trận kỹ thuật ch
       examHeader: {
         department: schoolHeader.department || 'SỞ GIÁO DỤC VÀ ĐÀO TẠO',
         school: schoolHeader.schoolName || 'TRƯỜNG THPT',
-        examTitle: (examType || 'KIỂM TRA GIỮA KỲ I').toUpperCase(),
+        examTitle: (customExamTitle || examType || 'KIỂM TRA GIỮA KỲ I').toUpperCase(),
         subject: 'Ngữ văn',
         grade: String(grade),
         academicYear: schoolHeader.academicYear || '2024 - 2025',
@@ -519,6 +521,104 @@ YÊU CẦU:
     return res.status(500).json({
       success: false,
       error: 'Không thể gợi ý ngữ liệu lúc này. Vui lòng tự nhập ngữ liệu.',
+    });
+  }
+});
+
+// Endpoint to extract text from uploaded .pdf, .docx, or .txt files
+app.post('/api/parse-document', async (req: Request, res: Response) => {
+  try {
+    const { fileBase64, fileName = 'tai_lieu', fileType = '' } = req.body;
+    if (!fileBase64) {
+      return res.status(400).json({ success: false, error: 'Chưa có dữ liệu tệp được gửi lên.' });
+    }
+
+    const buffer = Buffer.from(fileBase64, 'base64');
+    let extractedText = '';
+    const lowerName = fileName.toLowerCase();
+
+    if (lowerName.endsWith('.docx') || fileType.includes('word') || fileType.includes('officedocument')) {
+      const mammoth = await import('mammoth');
+      const mammothFn = (mammoth.default as any)?.extractRawText || (mammoth as any).extractRawText;
+      const result = await mammothFn({ buffer });
+      extractedText = result.value || '';
+    } else if (lowerName.endsWith('.pdf') || fileType.includes('pdf')) {
+      // 1. Phân tích văn bản PDF bằng pdf-parse
+      try {
+        const pdfPkg: any = await import('pdf-parse');
+        const PDFParseClass = pdfPkg?.PDFParse || pdfPkg?.default?.PDFParse || pdfPkg?.default;
+        if (PDFParseClass) {
+          const parser = new PDFParseClass({ data: buffer });
+          await parser.load();
+          const textResult = await parser.getText();
+          if (textResult) {
+            extractedText = typeof textResult === 'string' ? textResult : (textResult.text || '');
+          }
+        }
+      } catch (pdfErr) {
+        console.warn('PDFParse thông thường thất bại, thử phân tích qua Gemini OCR:', pdfErr);
+      }
+
+      // 2. Nếu PDF dạng scan ảnh hoặc text rỗng (< 25 từ), gọi Gemini OCR đọc PDF
+      const wordCount = extractedText.trim().split(/\s+/).filter(Boolean).length;
+      if (wordCount < 25 && process.env.GEMINI_API_KEY) {
+        try {
+          const aiResp = await ai.models.generateContent({
+            model: 'gemini-3.1-flash-lite',
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'application/pdf',
+                      data: fileBase64,
+                    },
+                  },
+                  {
+                    text: 'Hãy trích xuất nguyên văn toàn bộ nội dung văn bản (đoạn trích văn học, bài thơ, truyện, hoặc trích đoạn ngữ liệu) trong tệp PDF này. Đảm bảo giữ đúng chính tả, ngữ pháp tiếng Việt có dấu. Chỉ trả về văn bản trích xuất, không thêm lời chào hay giải thích nào khác.',
+                  },
+                ],
+              },
+            ],
+          });
+          if (aiResp.text && aiResp.text.trim().length > extractedText.trim().length) {
+            extractedText = aiResp.text.trim();
+          }
+        } catch (geminiPdfErr) {
+          console.warn('Lỗi OCR PDF bằng Gemini:', geminiPdfErr);
+        }
+      }
+    } else {
+      // Plain text / Markdown
+      extractedText = buffer.toString('utf-8');
+    }
+
+    // Chuẩn hóa Unicode NFC để bảo đảm hiển thị dấu tiếng Việt nguyên khối không bị phân tách
+    extractedText = extractedText.normalize('NFC').trim();
+
+    if (!extractedText) {
+      return res.status(400).json({
+        success: false,
+        error: 'Không tìm thấy nội dung văn bản khả dụng trong tệp vừa tải lên. Vui lòng kiểm tra lại tệp hoặc thử sao chép và dán trực tiếp.',
+      });
+    }
+
+    const words = extractedText.split(/\s+/).filter(Boolean).length;
+    const cleanTitle = fileName.replace(/\.[^/.]+$/, '').trim();
+
+    return res.json({
+      success: true,
+      text: extractedText,
+      title: cleanTitle,
+      wordCount: words,
+      message: `Đã trích xuất thành công ${words} chữ từ tệp "${fileName}".`,
+    });
+  } catch (err: any) {
+    console.error('Lỗi trích xuất tệp:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Không thể đọc nội dung tệp: ' + (err?.message || 'Lỗi định dạng'),
     });
   }
 });
